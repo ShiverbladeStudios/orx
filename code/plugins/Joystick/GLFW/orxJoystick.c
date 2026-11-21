@@ -58,6 +58,7 @@
 #define orxJOYSTICK_KU32_STATIC_FLAG_NONE     0x00000000 /**< No flags */
 
 #define orxJOYSTICK_KU32_STATIC_FLAG_READY    0x00000001 /**< Ready flag */
+#define orxJOYSTICK_KU32_STATIC_FLAG_DISABLED 0x00000002 /**< Disabled flag */
 
 #define orxJOYSTICK_KU32_STATIC_MASK_ALL      0xFFFFFFFF /**< All mask */
 
@@ -370,6 +371,25 @@ orxSTATUS orxFASTCALL orxJoystick_GLFW_Init()
     /* Cleans static controller */
     orxMemory_Zero(&sstJoystick, sizeof(orxJOYSTICK_STATIC));
 
+    /* Disabled in config? */
+    if(orxModule_IsInitialized(orxMODULE_ID_CONFIG) != orxFALSE)
+    {
+      orxBOOL bDisabled;
+
+      orxConfig_PushSection("Joystick");
+      bDisabled = (orxConfig_HasValue("Enabled") != orxFALSE)
+               && (orxConfig_GetBool("Enabled") == orxFALSE);
+      orxConfig_PopSection();
+
+      if(bDisabled != orxFALSE)
+      {
+        /* Ready, but never touches GLFW's joystick API */
+        sstJoystick.u32Flags = orxJOYSTICK_KU32_STATIC_FLAG_READY
+                             | orxJOYSTICK_KU32_STATIC_FLAG_DISABLED;
+        return orxSTATUS_SUCCESS;
+      }
+    }
+
     /* Registers event update function */
     eResult = orxClock_Register(orxClock_Get(orxCLOCK_KZ_CORE), orxJoystick_GLFW_Update, orxNULL, orxMODULE_ID_JOYSTICK, orxCLOCK_PRIORITY_HIGHER);
 
@@ -435,7 +455,10 @@ void orxFASTCALL orxJoystick_GLFW_Exit()
   if(sstJoystick.u32Flags & orxJOYSTICK_KU32_STATIC_FLAG_READY)
   {
     /* Unregisters update function */
-    orxClock_Unregister(orxClock_Get(orxCLOCK_KZ_CORE), orxJoystick_GLFW_Update, orxNULL);
+    if(!(sstJoystick.u32Flags & orxJOYSTICK_KU32_STATIC_FLAG_DISABLED))
+    {
+      orxClock_Unregister(orxClock_Get(orxCLOCK_KZ_CORE), orxJoystick_GLFW_Update, orxNULL);
+    }
 
     /* Cleans static controller */
     orxMemory_Zero(&sstJoystick, sizeof(orxJOYSTICK_STATIC));
